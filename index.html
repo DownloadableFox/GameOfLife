@@ -1,0 +1,444 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game of Life</title>
+    <style>
+        body {
+            padding: 0px;
+            margin: 0px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        p {
+            color: whitesmoke;
+            margin-bottom: 2px;
+            margin-top: 0px;
+        }
+
+        .root {
+            padding: 0px;
+            margin: 0px;
+            background-color: rgba(25, 25, 25, 1);
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .menu {
+            position: absolute;
+
+            padding: 0px;
+            left: 0px;
+            top: 0px;
+
+            margin-left: 10px;
+            margin-top: 10px;
+            
+            font-size: 12px;
+        }
+
+        .start-message {
+            position: absolute; 
+            display: flex;
+
+            width: 100vw;
+
+            align-items: center;
+            justify-content: center;
+
+            bottom: 0px;
+            margin-bottom: 20px;
+        }
+
+        .game {
+            position: absolute;
+            cursor: pointer;
+            margin-top: 0px;
+            margin-bottom: 0px;
+            margin-left: 0px;
+            margin-right: 0px;
+
+            width: 100vw;
+            height: 100vh;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="root">
+        <canvas id="game" class="game"></canvas>
+        <div id="debug-menu" class="menu"></div>
+        <p id="message" class="start-message">Game of Life is paused! Press space to start...</p>
+    </div>
+</body>
+
+<script type="text/javascript">
+    // constants
+    const pixelSize = 10;
+    const magnificationMultiplier = 1.2;
+    const sensitivity = 0.05;
+    const movements = [[0, 1], [0, -1], [-1, 0], [1, 0], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+    const updateDelay = 1;
+
+    const randomGenerationRadious = 25;
+    const randomGenerationSquaresCount = 10000;
+
+    // elements references
+    const canvasObj = document.getElementById("game");
+    const menuObj = document.getElementById("debug-menu");
+    const messageObj = document.getElementById("message");
+
+    // states
+    let cameraMoving = false;
+    let tickSpeed = -1;
+    let magnification = 2.0;
+    let debugMenu = true;
+    let squares = [];
+    let camera = [0, 0];
+
+    // public intervals
+    let tickInterval = null;
+
+    // setters
+    const togglePaused = () => {
+        setTickspeed(tickSpeed * -1);
+
+    }
+
+    const toggleDebugMenu = () => {
+        debugMenu = !debugMenu;
+    }
+
+    const setCamera = (pos) => {
+        camera = pos;
+    }
+
+
+    const setMagnification = (value) => {
+        magnification = value;
+    }
+
+    const setTickspeed = (speed) => {
+        tickSpeed = speed;
+
+        if (tickSpeed >= 0) {
+            if (tickInterval !== null) clearInterval(tickInterval);
+            tickInterval = setInterval(gameTick, tickSpeed);
+        } else {
+            if (tickInterval === null) return;
+            clearInterval(tickInterval);
+            tickInterval = null;
+        }
+    }
+
+    const clearSquares = () => {
+        squares = [];
+    }
+
+    const setSquare = (square) => {
+        let res = [];
+        let included = false;
+
+        for (let w = 0; w < squares.length; w++) {
+            if (square[0] === squares[w][0] && square[1] === squares[w][1]) {
+                included = true;
+            } else {
+                res.push(squares[w]);
+            }
+        }
+
+        if (included == false) {
+            res.push(square);
+        } 
+
+        squares = res;
+
+    }
+    // gui
+    const updateDebugMenu = () =>  {
+        if (!debugMenu) {
+            menuObj.innerHTML = "";
+            return;
+        }
+
+        menuObj.innerHTML = ""
+            + `<p>Tick speed: ${tickSpeed}ms</p>`
+            + `<p>Magnification: x${magnification}</p>`
+            + `<p>Camera X: ${camera[0]}</p>`
+            + `<p>Camera Y: ${camera[1]}</p>`
+            + `<p>Population: ${squares.length}</p>`
+    }
+
+    const updatePauseMessage = () => {
+        if (tickSpeed >= 0) {
+            messageObj.innerHTML = "";
+        } else {
+            messageObj.innerHTML = "Game of Life is paused! Press space to start...";
+        }
+    }
+
+    // Events
+
+    const initializeEvents = () => {
+        document.addEventListener('keydown', keyHandler);
+        document.addEventListener('wheel', wheelHandler);
+        document.addEventListener('mousedown', mouseDownHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
+        document.addEventListener('mousemove', mouseHandler);
+        document.addEventListener("contextmenu", e => e.preventDefault());
+    }
+
+    const keyHandler = (event) => {
+      const { key } = event;
+      if (key === ' ') togglePaused();
+      if (key === 'AltGraph') toggleDebugMenu();
+
+      if (key === 'ArrowUp') setCamera([camera[0], camera[1] - 1]);
+      if (key === 'ArrowDown') setCamera([camera[0], camera[1] + 1]);
+      if (key === 'ArrowLeft') setCamera([camera[0] - 1, camera[1]]);
+      if (key === 'ArrowRight') setCamera([camera[0] + 1, camera[1]]);
+
+      if (key === '.') setMagnification(Math.min(Math.max((magnification * magnificationMultiplier), 1/pixelSize), pixelSize));
+      if (key === ',') setMagnification(Math.min(Math.max((magnification / magnificationMultiplier), 1/pixelSize), pixelSize));
+      if (key === 'c') clearSquares();
+    }
+
+    const wheelHandler = (event) => {
+        let zoom = magnification;
+        if (event.deltaY < 0) {
+        zoom = magnification * magnificationMultiplier;
+        } else {
+        zoom = magnification / magnificationMultiplier
+        }
+
+        zoom = Math.min(Math.max(zoom, 1/pixelSize), pixelSize);
+
+        setMagnification(zoom);
+    }
+
+    const mouseDownHandler = (event) => {
+        event.preventDefault();
+
+        const { button } = event;
+        if (button === 0) {
+            cameraMoving = true;
+        } 
+    }
+
+    const mouseUpHandler = (event) => {
+        
+        event.preventDefault();
+
+        const { button, clientX, clientY } = event;
+        if (button === 0) {
+            cameraMoving = false;
+        } else if (button === 2) {
+            let cord = pixelToCoord(clientX, clientY);
+            setSquare(cord);
+        }
+        
+    }
+
+    const mouseHandler = (event) => {
+        if (cameraMoving) {
+            const { movementX, movementY } = event;
+            setCamera([camera[0] - movementX / (magnification / 2) * sensitivity, camera[1] - movementY  / (magnification / 2) * sensitivity]);
+        }
+    }
+
+    // game
+
+    const coordToPixel = (x, y) => {
+        let realSize = pixelSize * magnification;
+
+        let amountX = canvasObj.width / realSize;
+        let amountY = canvasObj.height / realSize;
+
+        let absoluteX = realSize * (((amountX - 1) / 2) - camera[0] + x);
+        let absoluteY = realSize * (((amountY - 1) / 2) - camera[1] + y);
+        
+        return [absoluteX, absoluteY];
+    }
+
+    const pixelToCoord = (x, y) => {
+        let realSize = pixelSize * magnification;
+
+        let amountX = canvasObj.width / realSize;
+        let amountY = canvasObj.height / realSize;
+        
+        let pixelX =  Math.floor((x / realSize) - ((amountX - 1) / 2) + camera[0]);
+        let pixelY =  Math.floor((y / realSize) - ((amountY - 1) / 2) + camera[1]);
+        
+        return [pixelX, pixelY];
+    }
+
+    const clearBackground = () => {
+        const context = canvasObj.getContext("2d");
+        canvasObj.width = canvasObj.clientWidth;
+        canvasObj.height = canvasObj.clientHeight;
+
+        context.beginPath();
+        context.rect(0, 0, canvasObj.width, canvasObj.height);
+        context.fillStyle = "#191919";
+        context.fill();
+    }
+
+    const drawSquares = () => {
+        const realSize = pixelSize * magnification;
+
+        const context = canvasObj.getContext("2d");
+        canvasObj.width = canvasObj.clientWidth;
+        canvasObj.height = canvasObj.clientHeight;
+
+        for (let i = 0; i < squares.length; i++) {
+            let square = squares[i];
+            let cord = coordToPixel(square[0], square[1]);
+            context.beginPath();
+            context.rect(cord[0], cord[1], realSize, realSize);
+            context.fillStyle = "white";
+            context.fill();
+        }
+
+    }
+
+    const getDead = async () => {
+      let res = [];
+  
+      for (let i = 0; i < squares.length; i++) {
+        let neighbors = 0;
+        for (let k = 0; k < movements.length; k++) {
+            const move = [squares[i][0] + movements[k][0], squares[i][1] + movements[k][1]];
+
+            let included = false;
+            for (let w = 0; w < squares.length; w++) {
+                if (move[0] === squares[w][0] && move[1] === squares[w][1]) {
+                    included = true;
+                    break;
+                }
+            }
+
+            if (included) {
+                neighbors++;
+            }
+        }
+  
+        if (neighbors === 2 || neighbors === 3) {
+          res.push(squares[i]);
+        }
+      }
+      return res;
+    }
+
+    const getAlive = async () => {
+        let res = [];
+        const aliveMap = new Map();
+
+        for (let i = 0; i < squares.length; i++) {
+            const square = squares[i];
+            for (let k = 0; k < movements.length; k++) {
+                const movement = movements[k];
+                const move = [square[0] + movement[0], square[1] + movement[1]];
+
+                let included = false;
+                for (let w = 0; w < squares.length; w++) {
+                    if (move[0] === squares[w][0] && move[1] === squares[w][1]) {
+                        included = true;
+                        break;
+                    }
+                }
+
+                if (!included) {
+                    let strMove = JSON.stringify(move);
+
+                    if (aliveMap.has(strMove)) {
+                        aliveMap.set(strMove, aliveMap.get(strMove) + 1);
+                    } else {
+                        aliveMap.set(strMove, 1);
+                    }
+                }
+            }
+        }
+
+        aliveMap.forEach((value, key, _) => {
+            if (value === 3) {
+                res.push(JSON.parse(key));
+            }
+        });
+
+        return res;
+    }
+
+    const generateGenericPattern = () => {
+        squares = [[0, 0], [1, 0], [0, 1], [0, -1], [-1, -1]];
+    }
+
+    const generateRandomSquares = () => {
+        for (let i = 0; i < randomGenerationSquaresCount; i++) {
+            let x = Math.floor(Math.random() * (randomGenerationRadious - randomGenerationRadious * -1) + randomGenerationRadious * -1);
+            let y = Math.floor(Math.random() * (randomGenerationRadious - randomGenerationRadious * -1) + randomGenerationRadious * -1);
+            
+            squares.push([x, y]);
+        }
+    }
+
+    const coolPagenerateRandomSquares2 = () => {
+        for (let y = -randomGenerationRadious; y < randomGenerationRadious; y++) {
+            if (y % 2 === Math.floor(Math.random() * 2 - 1)) {
+                for (let x = -randomGenerationRadious; x <= randomGenerationRadious; x++) {
+                    if (x % 2 === Math.floor(Math.random() * 2 - 1)) {
+                        squares.push([x, y]);
+                    }
+                }    
+            }
+        }
+    }
+
+    // engine
+
+    const gameTick = async () => {
+
+        if (squares.length === 0) return;
+         
+        let res = [];
+        
+        const alive = await getAlive();
+        const dead = await getDead();
+        
+        alive.forEach((square) => {
+            res.push(square);
+        });
+
+        dead.forEach((square) => {
+            res.push(square);
+        });
+
+        squares = res;
+    }
+
+    const update = () => {
+        // gui
+        updateDebugMenu();
+        updatePauseMessage();
+
+        // game
+        clearBackground();
+        drawSquares();
+    }
+
+    const start = () => {
+        //generateRandomSquares();
+        //coolPagenerateRandomSquares2();
+        generateGenericPattern();
+        initializeEvents();
+        setInterval(update, updateDelay);
+        setTickspeed(-10);
+    }
+
+    start();
+</script>
+</html>
