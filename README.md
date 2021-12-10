@@ -22,7 +22,7 @@ You have serveral ways to move arround including using the mouse and keyboard:
 
 #
 ### Running
-As it's just an html file, you can open it with your browser or host it with any static web server. I normally use *serve* (npm package).
+As it's just an html file, you can open it with your browser or host it with any static web server like *serve* (npm package).
 
 **To use/install serve you'll need to have npm and node**
 
