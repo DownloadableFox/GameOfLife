@@ -3,7 +3,7 @@ Simple Conway's Game of Life implementation made in HTML5 and JavaScript!
 
 > I made this because I was bored... Feel free to fork and create push requests with features and fixes! -DownloadableFox (Author)
 
-The idea behind this repository is to keep it simple **(just one html file)**, and frameworks! Just plain JavaScript and CSS. It's made specifically as a safe repository to new people at GitHub and programming in general. Feel free to contribute.
+The idea behind this repository is to keep it simple **(just one html file)**, no frameworks! Just plain JavaScript and CSS. It's made specifically as a safe-to-interact repository for new people at GitHub and programming in general. Feel free to contribute.
 
 #
 ### How it works
